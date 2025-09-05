@@ -174,14 +174,10 @@ export default function Page() {
           timeoutMs: 60000,
         })
 
-        const { stdout, stderr, exitCode } = await sandbox.commands.run("npm install --no-audit --loglevel warn", {
+        const { stdout, stderr } = await sandbox.commands.run("npm install --no-audit --loglevel warn", {
           cwd: "/home/user",
           timeoutMs: 300000, // 5 minutes for npm install
         })
-
-        if (exitCode !== 0) {
-          throw new Error(`Installation failed with exit code ${exitCode}:\n${stderr || stdout}`)
-        }
 
         console.log("[v0] Install completed")
         return NextResponse.json({ success: true, logs: stdout + stderr })
@@ -197,51 +193,10 @@ export default function Page() {
           timeoutMs: 60000,
         })
 
-        const { stdout, stderr, exitCode } = await sandbox.commands.run("npm run build", {
+        const { stdout, stderr } = await sandbox.commands.run("npm run build", {
           cwd: "/home/user",
           timeoutMs: 180000, // 3 minutes for build
         })
-
-        if (exitCode !== 0) {
-          const errorOutput = stderr || stdout
-
-          // Parse build errors to extract file and line information
-          const buildErrors = []
-          const errorLines = errorOutput.split("\n")
-
-          for (let i = 0; i < errorLines.length; i++) {
-            const line = errorLines[i]
-
-            // Look for TypeScript/Next.js error patterns
-            if (line.includes("Error:") || line.includes("error TS")) {
-              buildErrors.push(line.trim())
-            }
-
-            // Look for file path patterns (./app/page.tsx:10:5)
-            const fileMatch = line.match(/\.\/([^:]+):(\d+):(\d+)/)
-            if (fileMatch) {
-              const [, filePath, lineNum, colNum] = fileMatch
-              buildErrors.push(`📁 Fichier: ${filePath} - Ligne ${lineNum}, Colonne ${colNum}`)
-            }
-
-            // Look for syntax error patterns
-            if (line.includes("SyntaxError") || line.includes("Unexpected token")) {
-              buildErrors.push(`🔴 Erreur de syntaxe: ${line.trim()}`)
-            }
-
-            // Look for module not found errors
-            if (line.includes("Module not found") || line.includes("Cannot resolve")) {
-              buildErrors.push(`📦 Module manquant: ${line.trim()}`)
-            }
-          }
-
-          const detailedError =
-            buildErrors.length > 0
-              ? `Build failed with detailed errors:\n${buildErrors.join("\n")}\n\nFull output:\n${errorOutput}`
-              : `Build failed with exit code ${exitCode}:\n${errorOutput}`
-
-          throw new Error(detailedError)
-        }
 
         console.log("[v0] Build completed")
         return NextResponse.json({ success: true, logs: stdout + stderr })

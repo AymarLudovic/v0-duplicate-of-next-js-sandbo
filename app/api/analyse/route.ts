@@ -62,17 +62,11 @@ export async function POST(request: Request) {
 
     const fullHTML = document.body.innerHTML
 
-    const analysisResult = {
+    return NextResponse.json({
       fullHTML,
       fullCSS,
       fullJS,
       baseURL,
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: "Analyse terminée et stockée",
-      analysisData: analysisResult,
     })
   } catch (err: any) {
     console.error("Erreur dans l'API d'analyse:", err)
