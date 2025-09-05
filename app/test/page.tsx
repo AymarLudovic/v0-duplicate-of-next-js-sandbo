@@ -229,6 +229,15 @@ function Chat({ onApplyPlan, onRequestAnalysis, onCombineWithStored }: ChatProps
   const [selectedStoredProject, setSelectedStoredProject] = useState<string>("")
 
   const systemPlanHint = `Tu es un assistant expert pour la création de sites Next.js.
+
+🚫 INTERDICTION ABSOLUE DE GÉNÉRER DES FICHIERS CSS 🚫
+- NE génère JAMAIS de fichier "app/globals.css"
+- NE génère JAMAIS de fichier "globals.css" 
+- NE génère JAMAIS de fichier ".css"
+- Les styles CSS existent DÉJÀ dans le projet
+- Utilise UNIQUEMENT les classes CSS existantes
+- Le fichier globals.css est DÉJÀ créé automatiquement
+
 Avant de générer les fichiers Next.js, détecte si le prompt implique de cloner un site réel ou de récupérer son contenu.
 Si oui, retourne UN JSON STRICT (voir schéma ci-dessous) OU un objet avec "actions" listant "requestAnalysis" + "writeAnalyzed".
 
@@ -250,24 +259,37 @@ Réponds UNIQUEMENT par un JSON valide et rien d'autre.`.trim()
 
   const buildDesignContextPart = (design: AnalysisResult | null, maxCssChars = 4000) => {
     if (!design) return null
-    const css = design.fullCSS
-      ? design.fullCSS.length > maxCssChars
-        ? design.fullCSS.slice(0, maxCssChars) + "\n/*...truncated...*/"
-        : design.fullCSS
-      : ""
-    const htmlSnippet = design.fullHTML
-      ? design.fullHTML.length > 2000
-        ? design.fullHTML.slice(0, 2000) + "...truncated..."
-        : design.fullHTML
-      : ""
-    return `DESIGN_CONTEXT:
-Réutilise les mêmes classes, couleurs, backgrounds et layout pour garder la continuité visuelle sur toutes les pages générées.
 
-CSS:
-${css}
+    const htmlWithoutScript = design.fullHTML
+      ? design.fullHTML.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+      : ""
 
-HTML snippet:
-${htmlSnippet}`
+    const css = design.fullCSS || ""
+
+    const htmlSnippet =
+      htmlWithoutScript.length > 2000 ? htmlWithoutScript.slice(0, 2000) + "...truncated..." : htmlWithoutScript
+
+    return `🎨 CODES HTML ET CSS EXTRAITS POUR CONTINUITÉ DE DESIGN 🎨
+
+Voici les codes HTML et CSS que tu dois complètement utiliser pour générer le design des autres pages :
+
+CODE HTML COMPLET (sans JavaScript) :
+${htmlSnippet}
+
+CODE CSS COMPLET EN BRUT :
+${css.length > maxCssChars ? css.slice(0, maxCssChars) + "\n/*...truncated...*/" : css}
+
+📋 INSTRUCTIONS STRICTES :
+- Copie complètement la structure HTML du code HTML que tu vois là
+- Utilise les mêmes classes CSS tout en comprenant pourquoi tel div fait appel à cette classe CSS
+- Comprends le résultat visuel obtenu pour reproduire le même design
+- Reprends les mêmes structures du code analysé et réutilise-les pour créer d'autres pages
+- Le code CSS que tu as vu là est ce code qui est ajouté automatiquement dans le fichier app/globals.css
+- C'est pourquoi tu n'auras PLUS JAMAIS besoin de générer de fichier CSS
+- Tu devras donc complètement copier le HTML et sa structure en utilisant les mêmes classes CSS
+- Ces mêmes classes CSS sont contenues dans le code CSS brut ci-dessus qui est déjà enregistré automatiquement
+
+🚫 RAPPEL : NE GÉNÈRE AUCUN FICHIER CSS - ILS EXISTENT DÉJÀ ! 🚫`
   }
 
   const handleSend = async () => {
@@ -399,7 +421,8 @@ module.exports = {
                 normalized.files = normalized.files || {}
 
                 normalized.files[dest] = buildPageFromAnalysis(analysis, currentProjectName)
-                normalized.files["app/globals.css"] = buildGlobalsCssFromAnalysis(analysis)
+                // Do not generate globals.css
+                // normalized.files["app/globals.css"] = buildGlobalsCssFromAnalysis(analysis)
 
                 normalized.files["tailwind.config.js"] = `/** @type {import('tailwindcss').Config} */
 module.exports = {
