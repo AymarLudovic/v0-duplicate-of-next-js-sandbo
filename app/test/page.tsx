@@ -23,6 +23,7 @@ type StoredProject = {
 
 // localStorage utilities
 const STORAGE_KEY = "v0_sandbox_files"
+const ANALYSIS_STORAGE_KEY = "v0_current_analysis"
 
 const saveFilesToStorage = (
   projectName: string,
@@ -95,6 +96,26 @@ const clearAllStoredFiles = (): boolean => {
   }
 }
 
+const saveAnalysisToStorage = (analysis: AnalysisResult) => {
+  try {
+    localStorage.setItem(ANALYSIS_STORAGE_KEY, JSON.stringify(analysis))
+    return true
+  } catch (e) {
+    console.error("Error saving analysis to localStorage:", e)
+    return false
+  }
+}
+
+const getAnalysisFromStorage = (): AnalysisResult | null => {
+  try {
+    const stored = localStorage.getItem(ANALYSIS_STORAGE_KEY)
+    return stored ? JSON.parse(stored) : null
+  } catch (e) {
+    console.error("Error reading analysis from localStorage:", e)
+    return null
+  }
+}
+
 // ---------- helpers parsing JSON ----------
 function stripCodeFenceToJson(s: string): string | null {
   const fence = s.match(/```json\s*([\s\S]*?)```/i)
@@ -162,7 +183,10 @@ function safeParsePlan(fullText: string): GeminiPlan {
 // ---------- helpers de génération ----------
 const escForTemplate = (s: string) => s.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${")
 
-const buildPageFromAnalysis = (analysis: AnalysisResult, projectName: string) => {
+const buildPageFromAnalysis = (projectName: string) => {
+  const analysis = getAnalysisFromStorage()
+  if (!analysis) return `export default function Page() { return <div>No analysis data found</div> }`
+
   const html = escForTemplate(analysis.fullHTML || "")
   const js = escForTemplate(analysis.fullJS || "")
 
@@ -192,7 +216,10 @@ export default function Page() {
 }`
 }
 
-const buildGlobalsCssFromAnalysis = (analysis: AnalysisResult) => {
+const buildGlobalsCssFromAnalysis = () => {
+  const analysis = getAnalysisFromStorage()
+  if (!analysis) return `@tailwind base;\n@tailwind components;\n@tailwind utilities;`
+
   return `@tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -258,6 +285,9 @@ Schéma JSON attendu:
 Réponds UNIQUEMENT par un JSON valide et rien d'autre.`.trim()
 
   const buildDesignContextPart = (design: AnalysisResult | null, maxCssChars = 4000) => {
+    if (!design) {
+      design = getAnalysisFromStorage()
+    }
     if (!design) return null
 
     const htmlWithoutScript = design.fullHTML
@@ -368,6 +398,7 @@ ${css.length > maxCssChars ? css.slice(0, maxCssChars) + "\n/*...truncated...*/"
               const url = action.url || action.fromAnalysisOf
               if (!url) continue
               const analysis = await onRequestAnalysis(url)
+              saveAnalysisToStorage(analysis)
               setSavedDesign(analysis)
               normalized.files = normalized.files || {}
 
@@ -413,6 +444,7 @@ module.exports = {
               const url = action.fromAnalysisOf || action.url
               if (url) {
                 const analysis = await onRequestAnalysis(url)
+                saveAnalysisToStorage(analysis)
                 setSavedDesign(analysis)
 
                 const dest = action.path || "app/page.tsx"
@@ -420,9 +452,8 @@ module.exports = {
 
                 normalized.files = normalized.files || {}
 
-                normalized.files[dest] = buildPageFromAnalysis(analysis, currentProjectName)
-                // Do not generate globals.css
-                // normalized.files["app/globals.css"] = buildGlobalsCssFromAnalysis(analysis)
+                normalized.files[dest] = buildPageFromAnalysis(currentProjectName)
+                normalized.files["app/globals.css"] = buildGlobalsCssFromAnalysis()
 
                 normalized.files["tailwind.config.js"] = `/** @type {import('tailwindcss').Config} */
 module.exports = {
@@ -763,8 +794,14 @@ export default function TestPage() {
     })
     const result = await response.json()
     if (result.error) throw new Error(result.error)
-    setCurrentAnalysis(result)
-    return result
+
+    if (result.analysisData) {
+      saveAnalysisToStorage(result.analysisData)
+      setCurrentAnalysis(result.analysisData)
+      return result.analysisData
+    }
+
+    throw new Error("No analysis data received")
   }
 
   const applyPlan = async (plan: GeminiPlan) => {
