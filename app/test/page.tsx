@@ -422,7 +422,7 @@ module.exports = {
 
                 normalized.files[dest] = buildPageFromAnalysis(analysis, currentProjectName)
                 // Do not generate globals.css
-                // normalized.files["app/globals.css"] = buildGlobalsCssFromAnalysis(analysis)
+                 normalized.files["app/globals.css"] = buildGlobalsCssFromAnalysis(analysis)
 
                 normalized.files["tailwind.config.js"] = `/** @type {import('tailwindcss').Config} */
 module.exports = {
