@@ -84,15 +84,6 @@ export default function Page() {
           })
         }
 
-        let existingGlobalsCss = false
-        try {
-          await sandbox.files.read("/home/user/app/globals.css")
-          existingGlobalsCss = true
-          console.log("[v0] 🎨 Fichier globals.css détecté - fichier de l'IA non pris en charge")
-        } catch (e) {
-          console.log("[v0] No existing globals.css found")
-        }
-
         // Create package.json with dependencies
         const hasCustomDeps = plan?.dependencies && Object.keys(plan.dependencies).length > 0
         const hasCustomDevDeps = plan?.devDependencies && Object.keys(plan.devDependencies).length > 0
@@ -140,16 +131,10 @@ export default function Page() {
           }
         }
 
-        const filteredFiles = plan?.files || {}
-        if (existingGlobalsCss && filteredFiles["app/globals.css"]) {
-          console.log("[v0] ⚠️ Fichier globals.css de l'IA ignoré - utilisation du fichier existant")
-          delete filteredFiles["app/globals.css"]
-        }
-
-        // Write all files from the plan (except filtered ones)
-        if (filteredFiles && Object.keys(filteredFiles).length > 0) {
+        // Write all files from the plan
+        if (plan?.files) {
           console.log("[v0] Writing AI-generated files...")
-          for (const [path, content] of Object.entries(filteredFiles)) {
+          for (const [path, content] of Object.entries(plan.files)) {
             console.log("[v0] Writing file:", path)
             await sandbox.files.write(`/home/user/${path}`, String(content))
           }
@@ -160,7 +145,7 @@ export default function Page() {
           success: true,
           sandboxId: sid,
           message: "Plan applied successfully",
-          filesWritten: filteredFiles ? Object.keys(filteredFiles).length : 0,
+          filesWritten: plan?.files ? Object.keys(plan.files).length : 0,
         })
       }
 
